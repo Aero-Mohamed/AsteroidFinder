@@ -12,7 +12,9 @@ clear; clc; close all;  tic;
 global BB; %% Mag Field Body Frame
 global magFieldTimeStep currentTime lastMagFieldTime;
 global BB_meas pqr_meas;
+global w123_dot_rw_current; %% Reaction Wheels Command Signal
 planet              %% Radius, Mass, Gravity Const., Mu
+reactionWheel;      %% Reaction Wheels Inertia Calculations
 satellite_inertia;  %% Mass, Inertia
 filter_data;        %% gyroCovariance, Q, R, H_jac, P_0 for kalman filter
 
@@ -26,46 +28,59 @@ semi_major = norm(xyz_0);
 v_circ = sqrt(Mu/semi_major);  % Planet Orbital Velocity
 inclination = 56*pi/180;       % Orbit Inclination
 
+% State Vector Initialization
 xyz_dot_0 = [0, v_circ*cos(inclination), v_circ*sin(inclination)];
 phi_theta_psi_0 = [0, 0, 0*pi/180];
 q0123_0 = EulerAngles2Quaternions(phi_theta_psi_0)';
-pqr_0 = [0.0*pi/180, 0*pi/180, -0*pi/180];
+pqr_0 = [3*pi/180, 5*pi/180, -0*pi/180];
+w_reactionWheel_0 = [0, 0, 0]; % reaction wheel anglure velocity
+initail_state = [xyz_0, xyz_dot_0, q0123_0, pqr_0, w_reactionWheel_0]';
 
-initail_state = [xyz_0, xyz_dot_0, q0123_0, pqr_0]';
-
-%% Time Frame
+%% Time Frame of an full orbit
 period = 2*pi/sqrt(Mu)*semi_major^(3/2);  % one full orbit time
 timeStep = 1;
 t_span = 0:timeStep:period;
+% Calculate magField from IGRF model every n step
 magFieldTimeStep = 100; lastMagFieldTime = 0;
+% Get Sensor Date every n step
 sensorTimeStep = 1; lastSensorTime = 0;
 
-%% Simulation
+%% Locating matrices sizes
 state = NaN(length(t_span), length(initail_state));
 state(1, :) = initail_state';
 % Store Magnitic Field readings from IGRF model & Sensor
 BB_out = NaN(length(t_span), 3);
 BB_meas_out = NaN(length(t_span), 3);
-% Store pqr reading from sensor
+% Store pqr reading from gyro sensor
 pqr_meas_out = NaN(length(t_span), 3);
+
 % Kalman Filter Covariance Matrix
 P_cov = NaN(9, 9, length(t_span)); % multiple diminsions 
 P_cov(:, :, 1) = P_0;
 
+% For External Forces and Moments
+dF = [0, 0, 0]';
+dM = [0, 0, 0]';
+
+% initiale reaction wheel angular acceleration commands
+w123_dot_rw = NaN(length(t_span), 3);
+w123_dot_rw(1, :) = [0, 0, 0]; 
+prevErr = 0; integral = 0;
+
+
+% Simulation Start
 for i = 1:length(t_span)-1
 
     currentTime = t_span(i);
-    % For External Forces and Moments
-    forces = [0, 0, 0]';
-    moments = [0, 0, 0]';
-    % 
-    state(i+1, :) = SatelliteRK4(timeStep, state(i, :), forces, moments);
+    w123_dot_rw_current = w123_dot_rw(i, :)';
+    
+    % RK4 for non linear equations of motion
+    state(i+1, :) = SatelliteRK4(timeStep, state(i, :), dF, dM);
     BB_out(i, :) = BB; % Get Magnetic Field from IGRF model
     
-    %%% Kalman Filter F jacobian matrix
+    %%% Compute Kalman Filter F jacobian matrix
     currentState = state(i+1, :);
     prevState = state(i, :);
-    
     F = kalmanSystemJacobian(currentState, prevState, I, invI);
     P_cov(:, :, i+1) = F*P_cov(:, :, i)*F' + Q;
     
@@ -78,25 +93,36 @@ for i = 1:length(t_span)-1
         lastSensorTime = currentTime + sensorTimeStep;
         
         % let the state be [ q234 pqr TxTyTz] 
-        % T is disturbance Torque
+        % T is disturbance Torque, 
+        % as suggested by the given Diploma Thesis
         state_estimate = [state(i+1, 8:10), state(i+1, 11:13), [0 0 0]];
         [corrected_state, p_cov_corrected] = ES_EKF(varGyro, P_cov(:, :, i+1), state_estimate, pqr_meas_out(i, :));
         P_cov(:, :, i+1) = p_cov_corrected;
         
         state(i+1, 11:13) = corrected_state(5:7);
         state(i+1, 7:10) = corrected_state(1:4);
-        
     end 
     
+    % Reaction Wheel PID Controller 
+    [rw_command, prevErr, integral] = reactionWheelController(timeStep, state(i+1, :), prevErr, integral);
+    w123_dot_rw(i+1, :) = rw_command;
+    
+    % Satellite Frame to Calculate moments and forces
+    % e.g. moment due to reaction wheel acceleration
+    [dF, dM] = satelliteFrame(w123_dot_rw(i+1, :)'); % state(14-16) == w123_rw
+    
 end
+
+
 %% Extract Data for Plotting
 xyz_out_rk4 = state(:, 1:3);
 q_out = state(:,7:10);
 pqr_out = state(:, 11:13);
 phi_theta_psi_out = Quaternions2EulerAngles(q_out);
+w123_rw = state(:, 14:16); % reaction wheel anglure velocity
 
 
-%% Plot
+%% Plot Results
 %%% Orbit
 fig = figure();
 set(fig, 'color', 'white');
@@ -104,12 +130,14 @@ plot3(xyz_out_rk4(:, 1), xyz_out_rk4(:, 2), xyz_out_rk4(:, 3), 'b-', 'LineWidth'
 grid on 
 hold on;
 xlabel('X'); ylabel('Y'); zlabel('Z');
+title('Orbit Locus Simulation');
 %%% Earth Sphere
 [X, Y, Z] = sphere(100);
 X = X*Planet_Radius;
 Y = Y*Planet_Radius;
 Z = Z*Planet_Radius;
-surf(X, Y, Z, 'edgeColor', 'none');
+surf(X, Y, Z, 'edgeColor', 'none'); 
+colormap([0 0 0]);
 axis equal
 
 %% Magnetic Field
@@ -119,11 +147,13 @@ subplot(3, 1, 1);
 plot(t_span, BB_out(:, 1), 'b-', 'LineWidth', 2); hold on;
 plot(t_span, BB_meas_out(:, 1), 'k--', 'LineWidth', 2);hold on;
 legend('Bx (IGRF)', 'Bx Sensor'); ylabel('(Tesla)');
+grid on;
+title("Magnitic Field (IGRF model) vs (Sensor Measures)");
 
 subplot(3, 1, 2);
 plot(t_span, BB_out(:, 2), 'g-', 'LineWidth', 2); hold on;
 plot(t_span, BB_meas_out(:, 2), 'k--', 'LineWidth', 2); hold on;
-legend('By (IGRF)', 'By Sensor'); ylabel('(Tesla)');
+legend('By (IGRF)', 'By Sensor'); ylabel('(Tesla)'); grid on;
 
 subplot(3, 1, 3);
 plot(t_span, BB_out(:, 3), 'r-', 'LineWidth', 2); hold on;
@@ -131,14 +161,14 @@ plot(t_span, BB_meas_out(:, 3), 'k--', 'LineWidth', 2); hold on;
 grid on; legend('Bz (IGRF)', 'Bz Sensor');
 xlabel('Time(sec)')
 ylabel('(Tesla)');
-title("Magnitic Field (IGRF model) vs (Sensor Measures)");
+
 
 %%% Magnatic Field Magnitute
 fig3 = figure();
 set(fig3, 'color', 'white');
 plot(t_span, sqrt(sum(BB_out.^2, 2)), 'LineWidth', 2);
 xlabel('time (sec)'); ylabel('Tesla');
-title('Magnitute of Magnitic Field (nT)');
+title('Magnitute of Magnitic Field (T)');
 grid on;
 
 %% Angles
@@ -168,21 +198,43 @@ subplot(3, 1, 1);
 set(figAngleRates, 'color', 'white');
 plot(t_span, pqr_meas_out(:, 1)*180/pi, 'b--', 'LineWidth', 2);hold on;
 plot(t_span, pqr_out(:, 1)*180/pi, 'r-','LineWidth', 2); hold on;
-legend('p sensor', 'p model'); title('P (deg/s)');ylabel('deg/s');
+yline(0, 'LineWidth', 2); grid on;
+legend('P Gyro', 'P ES-EKF', 'Command'); title('P (deg/s)');ylabel('deg/s');
 
 subplot(3, 1, 2);
 plot(t_span, pqr_meas_out(:, 2)*180/pi, 'b--', 'LineWidth', 2);hold on;
 plot(t_span, pqr_out(:, 2)*180/pi, 'r-','LineWidth', 2); hold on;
-legend('q sensor', 'q model'); title('Q (deg/s)');ylabel('deg/s');
+yline(0, 'LineWidth', 2); grid on;
+legend('Q Gyro', 'Q ES-EKF', 'Command'); title('Q (deg/s)');ylabel('deg/s');
 
 subplot(3, 1, 3);
 plot(t_span, pqr_meas_out(:, 3)*180/pi, 'b--', 'LineWidth', 2);hold on;
 plot(t_span, pqr_out(:, 3)*180/pi, 'r-','LineWidth', 2); hold on;
-legend('r sensor', 'r model'); title('R (deg/s)');ylabel('deg/s');
+yline(0, 'LineWidth', 2);
+legend('R Gyro', 'R ES-EKF', 'Command'); title('R (deg/s)');ylabel('deg/s');
 grid on;
 xlabel('time (sec)');
 ylabel('deg/sec');
 
+%% Reaction Wheel anguler velocities
+figAngleRatesRW = figure();
+set(figAngleRatesRW, 'color', 'white');
+plot(t_span, w123_rw*180/pi, 'LineWidth', 2);
+grid on;
+xlabel('Time (sec)'); ylabel('deg/s');
+title('Reaction Wheel Angular Velocities');
+legend('Reaction Wheel 1', 'Reaction Wheel 2', 'Reaction Wheel 3');
+
+
+
+%% Reaction Wheel anguler acceleration
+figAngleAccRW = figure();
+set(figAngleAccRW, 'color', 'white');
+plot(t_span, w123_dot_rw*180/pi, 'LineWidth', 2);
+grid on;
+xlabel('Time (sec)'); ylabel('deg/s^2');
+title('Reaction Wheel Angular Acceleration');
+legend('Reaction Wheel 1', 'Reaction Wheel 2', 'Reaction Wheel 3');
 
 
 

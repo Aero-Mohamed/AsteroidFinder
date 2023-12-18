@@ -1,0 +1,157 @@
+%\document class[]{aiaa-tc} %load in aiaa class template file
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{mathrsfs}
+\usepackage{enumitem}
+\usepackage{mathabx}
+\usepackage{hyperref}
+\usepackage{natbib} %REMOVE THIS IF YOU DON'T WANT BRACKETS ON YOUR PAPER
+\usepackage{float}
+\usepackage{color,soul}
+\usepackage[font=normalsize,labelfont=bf]{caption}
+\usepackage[left=2cm,right=2cm,top=2cm,bottom=2cm]{geometry}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{xcolor}
+
+\newcommand{\sref}[1]{$^{[\ref{#1}]}$}
+\newcommand{\dref}[2]{$^{[\ref{#1}-\ref{#2}]}$}
+
+ % Define commands to assure consistent treatment throughout document
+\newcommand{\eqnref}[1]{(\ref{#1})}
+\newcommand{\class}[1]{\texttt{#1}}
+\newcommand{\package}[1]{\texttt{#1}}
+\newcommand{\file}[1]{\texttt{#1}}
+\newcommand{\BibTeX}{\textsc{Bib}\TeX}
+%\newcommand{\href}[1]{\href{#1}{
+
+\hypersetup{%
+  colorlinks=true,% hyperlinks will be black
+  linkcolor=blue,
+  linkbordercolor=red,% hyperlink borders will be red
+   %pdfborderstyle={/S/U/W 1}% border style will be underline of width 1pt
+}
+
+\makeatletter
+\Hy@AtBeginDocument{%
+  \def\@pdfborder{0 0 1}% Overrides border definition set with colorlinks=true
+  \def\@pdfborderstyle{/S/U/W 1}% Overrides border style set with colorlinks=true
+                                % Hyperlink border style will be underline of width 1pt
+}
+\makeatother
+
+\begin{document}
+
+\begin{center}
+\begin{LARGE}{\bf Project Based Engineering Instrumentation With CircuitPython}\end{LARGE}\\
+\large
+\vspace{22 mm}
+   A Brief Textbook Presented to the \\ 
+   Student Body of the University of South Alabama \\
+\vspace{22 mm}
+%%by\\
+\vspace{22 mm}
+  %%Carlos Montalvo \\
+\vspace{22 mm}
+       %%{\itshape University of South Alabama}\\
+       Last Update: \today\\
+{\bf Copyright $\copyright$ Carlos Jos\'{e} Montalvo}
+\end{center}
+
+\linespread{1}
+
+\newpage
+
+\section*{Manuscript Changes}
+
+\begin{enumerate}[itemsep=-5pt]
+\item Original tutorials in Google Docs created
+\item Tutorials moved to LaTeX on this Github
+\item December 21st, 2021 - Updated links for manuscript and hardware
+\item Tutorials purchased by Tangibles that Teach and moved to url \url{https://tangibles-that-teach.gitbook.io/instrumentation-lab-manual/-MbMx70LQzRmEG_hS7Ld/}
+\item May 30th, 2022 - Tangibles that teach went out of business and
+  chapter began the move to Github
+\item June 28th, 2022 - Work began on a Chromebook. Unfortunately the
+  Figures folder is not back up on Git. As such a main\_latest.pdf has
+  been created that's the latest full version. The main.pdf is the
+  version created by the Chromebook so it has new chapters but none of
+  the older chapters. Figure files are now backup on Git but only
+  figures from the 'Voltage Potentiometer' are currently there.
+\item July 2nd, 2022 - All figures backed up and latest manuscript completed
+\item October 18th, 2022 - A pedometer lab has been added.
+\item November 8th, 2022 - Edited the Servo and feedback control servo
+  lab to be one big lab with 3 parts
+\item January 8th, 2023 - Removed all mentions of Tangibles that Teach
+  in the main body of the text.
+\item February 6th, 2023 - Changed an assignment description for LEDs
+  and push buttons
+\item February 22nd, 2023 - Moved the Bluetooth module to be before
+  the modules lab so this will end up being a few updates to make
+  those projects more uniform. I also created a backup called
+  Bluetooth original in case you wanted to go back to the other version.
+\item June 16th, 2023 - Cleaned up the ``changes needed" list and updated Method 3 with some new software updates.
+\item August 9th, 2023 - Edited the preamble for assignments and made a note in the servo lab
+\end{enumerate}
+
+\section*{Changes Needed}
+
+\begin{enumerate}[itemsep=-5pt]
+\item Create circuit diagrams for each lesson. Do this in the fall during every lecture
+\item More theory is needed in this book or direction to further
+  reading for the students
+\item Create a lesson on how each sensor works. The thermistor and pitot probe come to mind 
+\item The photo of the button lab could be better (i.e add labels to
+  each item)
+\item The circuit photo for the LSM6DS33 is not correct
+\item Equations on thermistor need to be expanded
+\item Equations relating voltage from protocol to Lux needs to be included
+\item Example plots for light, sound, acceleration, etc needs to be expanded
+\item Pendulum lab must be done in one of two ways. Either the pendulum is attached to a potentiometer or the CPX is mounted to the end of a string and data logged on board the CPX itself. The potentiometer is nice because you can record data with your laptop but the string idea is cool because you use the accelerometer. In either case you can make some really long pendulums
+\item 3D printing a disc with holes on the outside to eventually mount to a shaft would be a really cool angular velocity sensor lab. Tangibles that teach could easily include a 3D printed disc that can mount to a pencil for ease of rotation. Could also include the CAD drawings so students can print more or even edit the design for better or worse performance.
+\item Buying some load cells with the HMC converter and including them in the kit would add a whole lot different labs
+\item Buying some magnetometers to measure magnetic field and do some sensor fusion would be neat. Could do roll, pitch and yaw calibration if we included a magnetometer.
+\item Right now a lab just on roll and pitch estimation would be possible. Pendulum lab pretty much introduces them to this but could easily do an rc aircraft lab where they build an aircraft out of foam with an elevator and aileron so that the servos responds to roll and pitch change. There is a lab right now with just pitch but perhaps we could add roll to it.
+\item Another cool project idea would be for the students to take temperature and light data on a cloudy day. Then have them infer if the amount of sunlight affected the temperature of the thermistor. They could plot the data with light on the x-axis and temperature on the y-axis and draw conclusions based on the plot they generate.
+\item Could also have them take temperature and light data over the course of a whole day to plot sunrise and sunset and watch the ambient temperature rise and fall
+\item For the aliasing lab, have the students sample as fast as possible and obtain the natural frequency of the system. Then have them sample at 1.0, 2.0 and 3.0 times the natural frequency they obtained. I originally picked 1,10 and 100 as arbitrary sampling frequencies and it would have been better to do 2,4 and 6.
+\item One cool lab would be to take light data during sunset and watch light and temperature plummet.
+\item \href{https://learn.adafruit.com/circuit-playground-o-phonor/musical-note-basics}{Add this lab on frequency for notes}
+\end{enumerate}
+
+\newpage
+
+\input{intro}
+
+\input{purchase_equipment_download_python}
+
+\input{getting_started}
+
+\input{trouble_shooting_guide}
+
+\input{external_leds_push_buttons}
+
+\input{daq}
+
+\input{bluetooth}
+
+\input{voltage_potentiometer}
+
+\input{pitot_probe}
+
+\input{modules}
+
+\input{acceleration}
+
+\input{pedometer}
+
+\input{imu}
+
+\input{photocell}
+
+\input{servo}
+
+\input{time_constant}
+
+\input{pendulum}
+
+\end{document}

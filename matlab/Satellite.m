@@ -1,10 +1,12 @@
 function dState_dT = Satellite(~, state, forces, moments)
     global BB; % Magnitic Field Body Frame
     global magFieldTimeStep currentTime lastMagFieldTime;
-
+    global Inertia_rw1_cg Inertia_rw2_cg Inertia_rw3_cg;
+    global w123_dot_rw_current; % Reaction Wheel Command Signal From the Controller
     
     planet;             % Planet Variables
     satellite_inertia;  % Mass & Inertia
+    reactionWheelParams;% 3 Reaction wheels parameters
     
     % Extract States
     x = state(1); y = state(2); z = state(3);
@@ -12,6 +14,7 @@ function dState_dT = Satellite(~, state, forces, moments)
     pqr = state(11:13);
     q_0123 = state(7:10);
     q0 = q_0123(1); q1 = q_0123(2); q2 = q_0123(3); q3 = q_0123(4);
+    w123_rw = state(14:16); % reaction wheel anglure velocity
     
     
     %%% Kinamatics
@@ -33,8 +36,9 @@ function dState_dT = Satellite(~, state, forces, moments)
     LMN_magtorquers = [0;0;0];
     Moments = LMN_magtorquers + moments;
     
+    H = Inertia_satellite * pqr + Inertia_rw1_cg*w123_rw(1)*n1 + Inertia_rw2_cg*w123_rw(2)*n2 + Inertia_rw3_cg*w123_rw(3)*n3;
     pqrdot = invI*(Moments - cross(...
-        pqr, I * pqr...
+        pqr, H...
     ));
     
     %% Magnitic Field | 
@@ -70,5 +74,5 @@ function dState_dT = Satellite(~, state, forces, moments)
     
     
     %% return State    
-    dState_dT = [vel; accel; q_dot; pqrdot];
+    dState_dT = [vel; accel; q_dot; pqrdot; w123_dot_rw_current];
 end

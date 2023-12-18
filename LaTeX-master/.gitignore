@@ -1,0 +1,11 @@
+tex2pdf
+ASAC_Derivations
+*.docx
+*.zip
+*.log
+*.out
+*.backup.*
+Graphics
+1D_Linear_Systems_Analysis
+Hand_Derivations
+References
