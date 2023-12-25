@@ -29,13 +29,14 @@ function dState_dT = Satellite(~, state, forces, moments)
     r_hat = r/rho;
     
     %%% Dynamics
-    F_grav = -(G*M*m/rho^2)*r_hat;
+    F_grav = -(Mu*m/rho^2)*r_hat;
     F = F_grav + forces;
     accel = F/m;
     
     LMN_magtorquers = [0;0;0];
     Moments = LMN_magtorquers + moments;
     
+    % angular momentum
     H = Inertia_satellite * pqr + Inertia_rw1_cg*w123_rw(1)*n1 + Inertia_rw2_cg*w123_rw(2)*n2 + Inertia_rw3_cg*w123_rw(3)*n3;
     pqrdot = invI*(Moments - cross(...
         pqr, H...

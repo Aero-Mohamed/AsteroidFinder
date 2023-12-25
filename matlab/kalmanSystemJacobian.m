@@ -1,4 +1,4 @@
-function F = kalmanSystemJacobian(currentState, prevState, I, invI)
+function F = kalmanSystemJacobian(timeStep, currentState, prevState, I, invI)
     %%% values needed in F Jacobian Computation
     pqr = currentState(11:13);
     p = pqr(1); q = pqr(2); r = pqr(3);
@@ -25,4 +25,7 @@ function F = kalmanSystemJacobian(currentState, prevState, I, invI)
                         I11*dq - I22*dq + I11*q - I22*q, I11*dp - I22*dp + I11*p - I22*p,                               0];
     F(4:6, 7:9) = invI;
     F(7:9, 7:9) = eye(3, 3);
+    
+    %F = (eye(9) + F*timeStep);
+    %F = expm(F*timeStep);
 end

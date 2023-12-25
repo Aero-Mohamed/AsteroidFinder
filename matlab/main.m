@@ -13,33 +13,23 @@ global BB; %% Mag Field Body Frame
 global magFieldTimeStep currentTime lastMagFieldTime;
 global BB_meas pqr_meas;
 global w123_dot_rw_current; %% Reaction Wheels Command Signal
-planet              %% Radius, Mass, Gravity Const., Mu
+orbitElement;       %% Determine Orbital inital Conditions from Elements
 reactionWheel;      %% Reaction Wheels Inertia Calculations
 satellite_inertia;  %% Mass, Inertia
 filter_data;        %% gyroCovariance, Q, R, H_jac, P_0 for kalman filter
 
 %% Initial Conditions 
 
-altitute = 600*1000; %% Meters
-xyz_0 = [Planet_Radius + altitute, 0, 0];
-
-% Assume Circular Orbit for simplicity.
-semi_major = norm(xyz_0);
-v_circ = sqrt(Mu/semi_major);  % Planet Orbital Velocity
-inclination = 56*pi/180;       % Orbit Inclination
-
 % State Vector Initialization
-xyz_dot_0 = [0, v_circ*cos(inclination), v_circ*sin(inclination)];
 phi_theta_psi_0 = [0, 0, 0*pi/180];
 q0123_0 = EulerAngles2Quaternions(phi_theta_psi_0)';
 pqr_0 = [3*pi/180, 5*pi/180, -0*pi/180];
 w_reactionWheel_0 = [0, 0, 0]; % reaction wheel anglure velocity
-initail_state = [xyz_0, xyz_dot_0, q0123_0, pqr_0, w_reactionWheel_0]';
+initail_state = [xyz_0', xyz_dot_0', q0123_0, pqr_0, w_reactionWheel_0]';
 
 %% Time Frame of an full orbit
-period = 2*pi/sqrt(Mu)*semi_major^(3/2);  % one full orbit time
 timeStep = 1;
-t_span = 0:timeStep:period;
+t_span = 0:timeStep:T_orbit;
 % Calculate magField from IGRF model every n step
 magFieldTimeStep = 100; lastMagFieldTime = 0;
 % Get Sensor Date every n step
@@ -81,7 +71,7 @@ for i = 1:length(t_span)-1
     %%% Compute Kalman Filter F jacobian matrix
     currentState = state(i+1, :);
     prevState = state(i, :);
-    F = kalmanSystemJacobian(currentState, prevState, I, invI);
+    F = kalmanSystemJacobian(timeStep, currentState, prevState, I, invI);
     P_cov(:, :, i+1) = F*P_cov(:, :, i)*F' + Q;
     
     % Sensor Measurements | Assume measurements are available every second.
@@ -141,36 +131,54 @@ colormap([0 0 0]);
 axis equal
 
 %% Magnetic Field
-fig2 = figure();
-set(fig2, 'color', 'white')
-subplot(3, 1, 1);
-plot(t_span, BB_out(:, 1), 'b-', 'LineWidth', 2); hold on;
-plot(t_span, BB_meas_out(:, 1), 'k--', 'LineWidth', 2);hold on;
-legend('Bx (IGRF)', 'Bx Sensor'); ylabel('(Tesla)');
+% fig2 = figure();
+% set(fig2, 'color', 'white')
+% subplot(3, 1, 1);
+% plot(t_span, BB_out(:, 1), 'b-', 'LineWidth', 2); hold on;
+% plot(t_span, BB_meas_out(:, 1), 'k--', 'LineWidth', 2);hold on;
+% legend('Bx (IGRF)', 'Bx Sensor'); ylabel('(Tesla)');
+% grid on;
+% title("Magnitic Field (IGRF model) vs (Sensor Measures)");
+% 
+% subplot(3, 1, 2);
+% plot(t_span, BB_out(:, 2), 'g-', 'LineWidth', 2); hold on;
+% plot(t_span, BB_meas_out(:, 2), 'k--', 'LineWidth', 2); hold on;
+% legend('By (IGRF)', 'By Sensor'); ylabel('(Tesla)'); grid on;
+% 
+% subplot(3, 1, 3);
+% plot(t_span, BB_out(:, 3), 'r-', 'LineWidth', 2); hold on;
+% plot(t_span, BB_meas_out(:, 3), 'k--', 'LineWidth', 2); hold on;
+% grid on; legend('Bz (IGRF)', 'Bz Sensor');
+% xlabel('Time(sec)')
+% ylabel('(Tesla)');
+% 
+% 
+% %%% Magnatic Field Magnitute
+% fig3 = figure();
+% set(fig3, 'color', 'white');
+% plot(t_span, sqrt(sum(BB_out.^2, 2)), 'LineWidth', 2);
+% xlabel('time (sec)'); ylabel('Tesla');
+% title('Magnitute of Magnitic Field (T)');
+% grid on;
+%% Velocities
+figAngles = figure();
+set(figAngles, 'color', 'white');
+subplot(2, 1, 1);
+plot(t_span, state(:, 4)*18/5, 'r-', 'LineWidth', 2); hold on;
+plot(t_span, state(:, 5)*18/5, 'b-','LineWidth', 2); hold on;
+plot(t_span, state(:, 6)*18/5, 'g-','LineWidth', 2); hold on;
 grid on;
-title("Magnitic Field (IGRF model) vs (Sensor Measures)");
+ylabel('Km/hr');
+legend('v_x', 'v_y', 'v_z');
+title('Velicties in Inertial Earth Centerd Frame');
 
-subplot(3, 1, 2);
-plot(t_span, BB_out(:, 2), 'g-', 'LineWidth', 2); hold on;
-plot(t_span, BB_meas_out(:, 2), 'k--', 'LineWidth', 2); hold on;
-legend('By (IGRF)', 'By Sensor'); ylabel('(Tesla)'); grid on;
-
-subplot(3, 1, 3);
-plot(t_span, BB_out(:, 3), 'r-', 'LineWidth', 2); hold on;
-plot(t_span, BB_meas_out(:, 3), 'k--', 'LineWidth', 2); hold on;
-grid on; legend('Bz (IGRF)', 'Bz Sensor');
-xlabel('Time(sec)')
-ylabel('(Tesla)');
-
-
-%%% Magnatic Field Magnitute
-fig3 = figure();
-set(fig3, 'color', 'white');
-plot(t_span, sqrt(sum(BB_out.^2, 2)), 'LineWidth', 2);
-xlabel('time (sec)'); ylabel('Tesla');
-title('Magnitute of Magnitic Field (T)');
+subplot(2, 1, 2);
+velocity_mag = sqrt(sum(state(:, 4:6).^2, 2));
+plot(t_span, velocity_mag*18/5, 'k-','LineWidth', 2); hold on;
 grid on;
-
+title('Velocity Mangintude In ECIF');
+xlabel('time (sec)');
+ylabel('Km/hr');
 %% Angles
 figAngles = figure();
 set(figAngles, 'color', 'white');
@@ -218,24 +226,20 @@ ylabel('deg/sec');
 
 %% Reaction Wheel anguler velocities
 figAngleRatesRW = figure();
+subplot(2, 1, 1);
 set(figAngleRatesRW, 'color', 'white');
 plot(t_span, w123_rw*180/pi, 'LineWidth', 2);
 grid on;
 xlabel('Time (sec)'); ylabel('deg/s');
 title('Reaction Wheel Angular Velocities');
 legend('Reaction Wheel 1', 'Reaction Wheel 2', 'Reaction Wheel 3');
-
-
-
-%% Reaction Wheel anguler acceleration
-figAngleAccRW = figure();
-set(figAngleAccRW, 'color', 'white');
+%%% Reaction Wheel anguler acceleration
+subplot(2, 1, 2);
 plot(t_span, w123_dot_rw*180/pi, 'LineWidth', 2);
 grid on;
 xlabel('Time (sec)'); ylabel('deg/s^2');
 title('Reaction Wheel Angular Acceleration');
 legend('Reaction Wheel 1', 'Reaction Wheel 2', 'Reaction Wheel 3');
-
 
 
 %% Total Execution Time
